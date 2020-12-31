@@ -1,0 +1,82 @@
+<html>
+
+<head>
+    <script src="wordcloud2.js">
+    </script>
+</head>
+
+<body>
+    <div style="text-align: center;">
+        <h1>Abstract direction</h1>
+        <p>The following word cloud is generated from the abstracts of articles published in Nature magazine, since the start of 2020.</p>
+        <canvas class="output" width="1000" height="1000"></canvas>
+    </div>
+    <div class="options" style="display:none">
+        <label> From date: <input id="fromDate" type="date"></label>
+        <label> To date: <input id="toDate" type="date"></label>
+        <button onclick="refetchArticles()">Refresh</button>
+    </div>
+    <div class="outstop" style="display:none">
+        <select name="wordsList" multiple style="resize:both; width: 500px; height:500px">
+        </select>
+        <button onclick="sendStops()">Send stop</button>
+    </div>
+    <script>
+        let cachedList = [];
+        let outputCanvas = document.querySelector(".output");
+        let stopSelector = document.querySelector("select[name='wordsList']");
+
+        function resizeCanvas() {
+            outputCanvas.width = document.body.clientWidth * 0.8;
+            outputCanvas.height = document.body.clientHeight * 0.8;
+            if (cachedList.length) {
+                let totalSize = cachedList.reduce((p, i) => p + i[1], 0);
+                let normalisedList = cachedList.map(i => ([i[0], i[1] / totalSize * outputCanvas.width * outputCanvas.height / 200]));
+                WordCloud(outputCanvas, {
+                    list: normalisedList
+                })
+            }
+        }
+
+        var refetchArticles = () => {
+            let rq = new XMLHttpRequest();
+            rq.addEventListener("readystatechange", (st) => {
+                if (rq.readyState == XMLHttpRequest.DONE) {
+                    cachedList = JSON.parse(rq.response).result.map(i => ([i[0], Math.sqrt(i[1])]));
+                    while (stopSelector.children.length) {
+                        stopSelector.children[0].remove();
+                    }
+                    cachedList = cachedList.sort();
+                    for (w of cachedList) {
+                        let op = document.createElement("option");
+                        op.value = w[0];
+                        op.innerText = w[0];
+                        stopSelector.appendChild(op);
+                    }
+                    resizeCanvas();
+                }
+            });
+            rq.open("GET", `wordcloud?fromTime=${0}&toTime=${Date.now()}`);
+            rq.send();
+        }
+        refetchArticles();
+        if (new URLSearchParams(window.location.search).has("addstops")) {
+            document.querySelector(".outstop").style.display = "block";
+        }
+
+        function sendStops() {
+            let rq = new XMLHttpRequest();
+            rq.addEventListener("readystatechange", (st) => {
+                if (rq.readyState == XMLHttpRequest.DONE) {
+                    window.location.href = window.location.href + "&k=" + Date.now();
+                }
+            })
+            rq.open("POST", "addStops");
+            rq.setRequestHeader("Content-Type", "application/json");
+            rq.send(JSON.stringify(Array.from(stopSelector.selectedOptions).map(i => i.value)));
+
+        }
+    </script>
+</body>
+
+</html>
